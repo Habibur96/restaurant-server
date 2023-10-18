@@ -1,6 +1,7 @@
 const express = require("express");
 const cors = require("cors");
 const app = express();
+const jwt = require("jsonwebtoken");
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 require("dotenv").config();
 const port = process.env.PORT || 5000;
@@ -29,10 +30,61 @@ async function run() {
     // Connect the client to the server	(optional starting in v4.7)
     await client.connect();
 
+    // ======================Jwt=========================
+    app.post("/jwt", (req, res) => {
+      const user = req.body;
+      const token = jwt.sign(
+        user,
+        process.env.ACCESS_TOKEN_SECRECT,
+
+        { expiresIn: "1h" }
+      );
+      res.send({token});
+    });
+
     //users related apis
+    app.get("/users", async (req, res) => {
+      const result = await usersCollection.find().toArray();
+      res.send(result);
+    });
+
     app.post("/users", async (req, res) => {
       const user = req.body;
+      const query = { email: user.email };
+      const existingUser = await usersCollection.findOne(query);
+      if (existingUser) {
+        return res.send({ message: "user already exits" });
+      }
       const result = await usersCollection.insertOne(user);
+      res.send(result);
+    });
+
+    // app.patch("/users/admin/:id", async (req, res) => {
+    //   const id = req.params.id;
+    //   const filter = { _id: new ObjectId(id) };
+
+    //   const updateDoc = {
+    //     $set: {
+    //       role: "admin",
+    //     },
+    //   };
+    app.patch("/users/:id", async (req, res) => {
+      const id = req.params.id;
+      console.log(id);
+      const filter = { _id: new ObjectId(id) };
+      const updateDoc = {
+        $set: {
+          role: "admin",
+        },
+      };
+      const result = await usersCollection.updateOne(filter, updateDoc);
+      res.send(result);
+    });
+
+    app.delete("/users/:id", async (req, res) => {
+      const id = req.params.id;
+      const filter = { _id: new ObjectId(id) };
+      const result = await usersCollection.deleteOne(filter);
       res.send(result);
     });
 
