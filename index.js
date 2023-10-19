@@ -10,6 +10,25 @@ const port = process.env.PORT || 5000;
 app.use(cors());
 app.use(express.json());
 
+const verifyJwt = (req, res, next) => {
+  const authorization = req.header.authorization;
+  if (!authorization) {
+    return res
+      .status(401)
+      .send({ error: true, message: "Unauthorized access" });
+  }
+  //bearer token
+  const token = authorization.split(" ")[1];
+  jwt.verify(token, process.env.ACCESS_TOKEN_SECRECT, (err, decoded) => {
+    if (err) {
+      return res.send.status(401).send();
+    } else {
+      req.decoded = decoded;
+      next();
+    }
+  });
+};
+
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.fpcalbv.mongodb.net/?retryWrites=true&w=majority`;
 
 // Create a MongoClient with a MongoClientOptions object to set the Stable API version
@@ -39,7 +58,7 @@ async function run() {
 
         { expiresIn: "1h" }
       );
-      res.send({token});
+      res.send({ token });
     });
 
     //users related apis
@@ -59,15 +78,6 @@ async function run() {
       res.send(result);
     });
 
-    // app.patch("/users/admin/:id", async (req, res) => {
-    //   const id = req.params.id;
-    //   const filter = { _id: new ObjectId(id) };
-
-    //   const updateDoc = {
-    //     $set: {
-    //       role: "admin",
-    //     },
-    //   };
     app.patch("/users/:id", async (req, res) => {
       const id = req.params.id;
       console.log(id);
@@ -101,11 +111,19 @@ async function run() {
     });
 
     //cart collection apis
-    app.get("/carts", async (req, res) => {
+    app.get("/carts", verifyJwt, async (req, res) => {
       const email = req.query.email;
       if (!email) {
         res.send([]);
       }
+
+      const decodedEmail = req.decoded.email;
+      if (email !== decodedEmail) {
+        return res
+          .status(403)
+          .send({ error: true, message: "porviden access" });
+      }
+
       const query = { email: email };
       const result = await cartCollection.find(query).toArray();
       res.send(result);
