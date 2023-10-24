@@ -21,7 +21,9 @@ const verifyJwt = (req, res, next) => {
   const token = authorization.split(" ")[1];
   jwt.verify(token, process.env.ACCESS_TOKEN_SECRECT, (err, decoded) => {
     if (err) {
-      return res.send.status(401).send();
+      return res.send
+        .status(401)
+        .send({ error: true, message: "unauthorized access" });
     } else {
       req.decoded = decoded;
       next();
@@ -139,13 +141,26 @@ async function run() {
       res.send(result);
     });
 
+    app.post("/menu", verifyJwt, verifyAdmin, async (req, res) => {
+      const newItem = req.body;
+      const result = await menuCollection.insertOne(newItem);
+      res.send(result);
+    });
+
+    app.delete("/menu/:id", async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id) };
+      const result = await menuCollection.deleteOne(query);
+      res.send(result);
+    });
+
     //review related apis
     app.get("/reviews", async (req, res) => {
       const result = await reviewsCollection.find().toArray();
       res.send(result);
     });
 
-    //cart collection apis ==
+    //cart collection apis
     app.get("/carts", verifyJwt, async (req, res) => {
       const email = req.query.email;
       if (!email) {
@@ -238,7 +253,6 @@ app.listen(port, () => {
 //     next();
 //   })
 // }
-
 
 // const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 // const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.swu9d.mongodb.net/?retryWrites=true&w=majority`;
@@ -336,7 +350,6 @@ app.listen(port, () => {
 
 //     })
 
-
 //     // menu related apis
 //     app.get('/menu', async (req, res) => {
 //       const result = await menuCollection.find().toArray();
@@ -348,7 +361,6 @@ app.listen(port, () => {
 //       const result = await reviewCollection.find().toArray();
 //       res.send(result);
 //     })
-
 
 //     // cart collection apis
 //     app.get('/carts', verifyJWT, async (req, res) => {
@@ -391,7 +403,6 @@ app.listen(port, () => {
 // }
 // run().catch(console.dir);
 
-
 // app.get('/', (req, res) => {
 //   res.send('boss is sitting')
 // })
@@ -399,7 +410,6 @@ app.listen(port, () => {
 // app.listen(port, () => {
 //   console.log(`Bistro boss is sitting on port ${port}`);
 // })
-
 
 /**
  * --------------------------------
@@ -412,4 +422,4 @@ app.listen(port, () => {
  * app.patch('/users/:id')
  * app.put('/users/:id')
  * app.delete('/users/:id')
-*/
+ */
