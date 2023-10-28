@@ -4,6 +4,7 @@ const app = express();
 const jwt = require("jsonwebtoken");
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 require("dotenv").config();
+const stripe = require("stripe")(process.env.PAYMENT_SECRET_KEY);
 const port = process.env.PORT || 5000;
 
 //middleware
@@ -11,7 +12,7 @@ app.use(cors());
 app.use(express.json());
 
 const verifyJwt = (req, res, next) => {
-  const authorization = req.header.authorization;
+  const authorization = req.headers.authorization;
   if (!authorization) {
     return res
       .status(401)
@@ -64,17 +65,29 @@ async function run() {
     });
 
     // Warning: use verifyJWT before using verifyAdmin
-    const verifyAdmin = async (req, res, next) => {
+    const varifyAdminJwt = async (req, res, next) => {
       const email = req.decoded.email;
       const query = { email: email };
       const user = await usersCollection.findOne(query);
-      if (user?.role !== "admin") {
+      if ( user?.role !== "admin") {
         return res
           .status(403)
           .send({ error: true, message: "forbidden message" });
       }
       next();
     };
+
+    // const varifyAdminJwt = async (req, res, next) => {
+    //   const email = req.decoded.email;
+    //   const query = { email: email };
+    //   const user = await usersCollection.findOne(query);
+    //   if (!user || user?.role !== "admin") {
+    //     return res
+    //       .status(403)
+    //       .send({ error: true, message: "forbidden message" });
+    //   }
+    //   next();
+    // };
 
     /**
      * 0. do not show secure links to those who should not see the links
@@ -83,7 +96,7 @@ async function run() {
      */
 
     //users related apis
-    app.get("/users", verifyJwt, verifyAdmin, async (req, res) => {
+    app.get("/users", verifyJwt, varifyAdminJwt, async (req, res) => {
       const result = await usersCollection.find().toArray();
       res.send(result);
     });
@@ -102,7 +115,7 @@ async function run() {
     // security layer: verifyJWT
     // email same
     // check admin
-    app.get("/users/admin/:email", verifyJwt, async (req, res) => {
+    app.get("/users/:email", verifyJwt, async (req, res) => {
       const email = req.params.email;
 
       if (req.decoded.email !== email) {
@@ -115,7 +128,7 @@ async function run() {
       res.send(result);
     });
 
-    app.patch("/users/admin/:id", async (req, res) => {
+    app.patch("/users/:id", async (req, res) => {
       const id = req.params.id;
       console.log(id);
       const filter = { _id: new ObjectId(id) };
@@ -135,13 +148,27 @@ async function run() {
       res.send(result);
     });
 
+    //create payment intent
+    app.post("/create-payment-intent", verifyJwt, async (req, rea) => {
+      const { price } = req.body;
+      const amount = price * 100;
+      const paymentIntent = await stripe.paymentIntents.create({
+        amount: amount,
+        currency: "usd",
+        payment_method_types: [true],
+      });
+      res.send({
+        clientSecret: paymentIntent.client_secret,
+      });
+    });
+
     //menu related apis
     app.get("/menu", async (req, res) => {
       const result = await menuCollection.find().toArray();
       res.send(result);
     });
 
-    app.post("/menu", verifyJwt, verifyAdmin, async (req, res) => {
+    app.post("/menu", verifyJwt, varifyAdminJwt, async (req, res) => {
       const newItem = req.body;
       const result = await menuCollection.insertOne(newItem);
       res.send(result);
