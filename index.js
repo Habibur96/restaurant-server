@@ -159,7 +159,70 @@ async function run() {
         _id: { $in: payment.cartItems.map((id) => new ObjectId(id)) },
       };
       const deleteResult = await cartCollection.deleteMany(query);
-      res.send(insertResult, deleteResult);
+      res.send({ insertResult, deleteResult });
+    });
+
+    app.get("/admin-stats", verifyJwt, varifyAdminJwt, async (req, res) => {
+      const users = await usersCollection.estimatedDocumentCount();
+      const products = await menuCollection.estimatedDocumentCount();
+      const orders = await paymentCollection.estimatedDocumentCount();
+
+      const payments = await paymentCollection.find().toArray();
+      const revenue = payments.reduce((sum, payment) => sum + payment.price, 0);
+      res.send({
+        users,
+        products,
+        orders,
+        revenue,
+      });
+    });
+
+    /**
+     * ---------------
+     * BANGLA SYSTEM(second best solution)
+     * ---------------
+     * 1. load all payments
+     * 2. for each payment, get the menuItems array
+     * 3. for each item in the menuItems array get the menuItem from the menu collection
+     * 4. put them in an array: allOrderedItems
+     * 5. separate allOrderedItems by category using filter
+     * 6. now get the quantity by using length: pizzas.length
+     * 7. for each category use reduce to get the total amount spent on this category
+     *
+     */
+
+    app.get("/order-stats", verifyJwt, varifyAdminJwt, async (req, res) => {
+      const pipeline = [
+        {
+          $lookup: {
+            from: "menu",
+            localField: "menuItems",
+            foreignField: "_id",
+            as: "menuItemsData",
+          },
+        },
+        {
+          $unwind: "$menuItemsData",
+        },
+        {
+          $group: {
+            _id: "$menuItemsData.category",
+            count: { $sum: 1 },
+            total: { $sum: "$menuItemsData.price" },
+          },
+        },
+        {
+          $project: {
+            category: "$_id",
+            count: 1,
+            total: { $round: ["$total", 2] },
+            _id: 0,
+          },
+        },
+      ];
+
+      const result = await paymentCollection.aggregate(pipeline).toArray();
+      res.send(result);
     });
 
     //menu related apis
